@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Number Guessing Game</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            width: 50%;
+            max-width: 800px;
+            min-width: 480px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .form {
+            margin: 20px 0;
+        }
+        input {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Guess the Number!</h1>
+    <p>I've picked a random number between 1 and 10. Can you guess it?</p>
+    
+    <div class="form">
+        <label for="guessField">Your guess:</label>
+        <input type="number" id="guessField" class="guessField" min="1" max="10">
+        <input type="button" value="Submit Guess" class="guessSubmit" id="submitguess">
+    </div>
+    
+    <p id="attempts">Attempts: 0</p>
+
+    <script>
+        // Generate random number (1 to 10)
+        let secretNumber = Math.floor(Math.random() * 10) + 1;
+        
+        // Track number of guesses
+        let attempts = 0;
+        const attemptsDisplay = document.getElementById('attempts');
+
+        // Add click event to submit button
+        document.getElementById('submitguess').onclick = function() {
+            // Get user's guess
+            let userGuess = parseInt(document.getElementById('guessField').value);
+            
+            // Increase attempts
+            attempts++;
+            attemptsDisplay.textContent = 'Attempts: ' + attempts;
+            
+            // Clear input field
+            document.getElementById('guessField').value = '';
+            
+            if (userGuess === secretNumber) {
+                alert('Congratulations! You got it in ' + attempts + ' attempts!');
+            } else if (userGuess > secretNumber) {
+                alert('Too high! Try a smaller number.');
+            } else {
+                alert('Too low! Try a bigger number.');
+            }
+        };
+    </script>
+</body>
+</html>

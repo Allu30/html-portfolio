@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Snake Game</title>
+  <style>
+    /* =============================================
+       GENERAL PAGE STYLES
+       ============================================= */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #285b2d;
+      color: #d12525;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      letter-spacing: 4px;
+      color: #5DCAA5;
+    }
+
+    /* =============================================
+       SCORE BOARD
+       ============================================= */
+    #score-bar {
+      display: flex;
+      gap: 32px;
+    }
+
+    .score-card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 8px 24px;
+      text-align: center;
+    }
+
+    .score-label {
+      font-size: 12px;
+      color: #915757;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .score-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4fdaac;
+    }
+
+    /* =============================================
+       GAME CANVAS
+       - This is where the game is drawn
+       ============================================= */
+    #canvas {
+      border: 4px solid #0f3460;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* =============================================
+       MESSAGE & BUTTONS
+       ============================================= */
+    #message {
+      font-size: 14px;
+      color: #aaa;
+      min-height: 20px;
+      text-align: center;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      padding: 8px 24px;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid #5DCAA5;
+      background: transparent;
+      color: #5DCAA5;
+      letter-spacing: 2px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #49a641;
+      color: #1a1a2e;
+    }
+
+    button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    button:disabled:hover {
+      background: transparent;
+      color: #5DCAA5;
+    }
+
+    /* =============================================
+       D-PAD (on-screen arrow buttons for mobile)
+       ============================================= */
+    #d-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 48px);
+      gap: 4px;
+    }
+
+    .d-btn {
+      width: 48px;
+      height: 48px;
+      font-size: 20px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .d-empty {
+      width: 48px;
+      height: 48px;
+    }
+
+    /* =============================================
+       FOOTER HINT
+       ============================================= */
+    #hint {
+      font-size: 12px;
+      color: #555;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>SNAKE</h1>
+
+  <!-- Score board -->
+  <div id="score-bar">
+    <div class="score-card">
+      <div class="score-label">Score</div>
+      <div class="score-value" id="score">0</div>
+    </div>
+    <div class="score-card">
+      <div class="score-label">Best</div>
+      <div class="score-value" id="best">0</div>
+    </div>
+  </div>
+
+  <!-- The canvas is where the entire game is drawn using JavaScript -->
+  <canvas id="canvas" width="400" height="400"></canvas>
+
+  <!-- Status message shown to the player -->
+  <div id="message">Press Start or use arrow keys to play</div>
+
+  <!-- Start and Pause buttons -->
+  <div id="controls">
+    <button id="startBtn">START</button>
+    <button id="pauseBtn" disabled>PAUSE</button>
+  </div>
+
+  <!-- On-screen D-pad for mobile players -->
+  <div id="d-pad">
+    <div class="d-empty"></div>
+    <button class="d-btn" data-dir="UP">▲</button>
+    <div class="d-empty"></div>
+    <button class="d-btn" data-dir="LEFT">◀</button>
+    <button class="d-btn" data-dir="DOWN">▼</button>
+    <button class="d-btn" data-dir="RIGHT">▶</button>
+  </div>
+
+  <div id="hint">ARROW KEYS or D-PAD to move</div>
+
+  <script>
+    // =============================================
+    // SETUP: Get references to HTML elements
+    // =============================================
+    const canvas  = document.getElementById('canvas');
+    const ctx     = canvas.getContext('2d');  // '2d' lets us draw shapes on the canvas
+
+    // =============================================
+    // GAME CONSTANTS
+    // These values never change during the game
+    // =============================================
+    const GRID_SIZE = 20;               // Each cell is 20x20 pixels
+    const COLS = canvas.width / GRID_SIZE;   // Number of columns (400/20 = 20)
+    const ROWS = canvas.height / GRID_SIZE;  // Number of rows (400/20 = 20)
+    const GAME_SPEED = 150;             // Milliseconds between each game tick
+
+    // =============================================
+    // COLORS
+    // =============================================
+    const COLOR_BG        = '#1a1a2e';  // Dark background
+    const COLOR_GRID      = 'rgba(255,255,255,0.03)';  // Subtle grid lines
+    const COLOR_SNAKE_HEAD = '#1D9E75'; // Dark green for the head
+    const COLOR_SNAKE_BODY = '#5DCAA5'; // Light green for the body
+    const COLOR_FOOD      = '#D85A30';  // Orange-red for food
+
+    // =============================================
+    // GAME STATE VARIABLES
+    // These change as the game runs
+    // =============================================
+    let snake;       // Array of {x, y} objects — one per snake segment
+    let direction;   // Current movement direction {x, y}
+    let nextDir;     // The NEXT direction (updated by keyboard, applied each tick)
+    let food;        // Food position {x, y}
+    let score;       // Current score
+    let best = 0;    // Best score (survives across games)
+    let gameLoop;    // Reference to the setInterval timer
+    let running;     // true if game is actively ticking
+    let paused;      // true if game is paused
+
+    // =============================================
+    // FUNCTION: initGame
+    // Resets all variables to start a fresh game
+    // =============================================
+    function initGame() {
+      // Start the snake in the middle of the grid, moving right
+      snake     = [{ x: 10, y: 10 }];
+      direction = { x: 1, y: 0 };   // Moving RIGHT: x+1 each tick
+      nextDir   = { x: 1, y: 0 };
+      score     = 0;
+      running   = false;
+      paused    = false;
+
+      spawnFood();    // Place the first food item
+      updateScore();  // Refresh the score display
+      draw();         // Draw the initial state
+    }
+
+    // =============================================
+    // FUNCTION: spawnFood
+    // Places food at a random empty cell
+    // =============================================
+    function spawnFood() {
+      let pos;
+
+      // Keep trying random positions until we find one
+      // that is NOT occupied by the snake
+      do {
+        pos = {
+          x: Math.floor(Math.random() * COLS),
+          y: Math.floor(Math.random() * ROWS)
+        };
+      } while (snake.some(seg => seg.x === pos.x && seg.y === pos.y));
+      // 'some' returns true if ANY snake segment matches the position
+
+      food = pos;
+    }
+
+    // =============================================
+    // FUNCTION: startGame
+    // Starts a new game from scratch
+    // =============================================
+    function startGame() {
+      // Stop any existing game loop before starting fresh
+      clearInterval(gameLoop);
+
+      initGame();
+      running = true;
+
+      document.getElementById('pauseBtn').disabled = false;
+      document.getElementById('startBtn').textContent = 'RESTART';
+      document.getElementById('message').textContent = 'Good luck! Eat the orange circles!';
+
+      // setInterval calls tick() every GAME_SPEED milliseconds
+      // This is the "game loop" — the heartbeat of the game
+      gameLoop = setInterval(tick, GAME_SPEED);
+    }
+
+    // =============================================
+    // FUNCTION: tick
+    // Called every 150ms — this is one "frame" of the game
+    // =============================================
+    function tick() {
+      // Apply the queued direction (prevents multiple direction changes per tick)
+      direction = { ...nextDir };  // spread operator copies the object
+
+      // Calculate where the new head will be
+      const newHead = {
+        x: snake[0].x + direction.x,
+        y: snake[0].y + direction.y
+      };
+
+      // --- COLLISION CHECK 1: Hit a wall? ---
+      if (newHead.x < 0 || newHead.x >= COLS || newHead.y < 0 || newHead.y >= ROWS) {
+        gameOver();
+        return;  // Stop the function — don't continue this tick
+      }
+
+      // --- COLLISION CHECK 2: Hit itself? ---
+      if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
+        gameOver();
+        return;
+      }
+
+      // Move the snake forward by adding the new head at the FRONT
+      snake.unshift(newHead);  // unshift = add to beginning of array
+
+      // --- DID WE EAT FOOD? ---
+      if (newHead.x === food.x && newHead.y === food.y) {
+        // Yes! Add points, keep the tail (snake grows), spawn new food
+        score += 10;
+        if (score > best) best = score;  // Update best score if needed
+        updateScore();
+        spawnFood();
+      } else {
+        // No food eaten — remove the last tail segment so snake just moves
+        snake.pop();  // pop = remove last item from array
+      }
+
+      draw();  // Redraw the game after each tick
+    }
+
+    // =============================================
+    // FUNCTION: gameOver
+    // Called when the snake dies
+    // =============================================
+    function gameOver() {
+      clearInterval(gameLoop);  // Stop the game loop
+      running = false;
+      paused  = false;
+
+      document.getElementById('pauseBtn').disabled = true;
+      document.getElementById('pauseBtn').textContent = 'PAUSE';
+      document.getElementById('message').textContent =
+        `💀 Game Over! You scored ${score}. Press RESTART to try again.`;
+
+      draw();  // Redraw one final time
+    }
+
+    // =============================================
+    // FUNCTION: togglePause
+    // Pauses or resumes the game
+    // =============================================
+    function togglePause() {
+      if (!running) return;  // Can't pause if not playing
+
+      if (paused) {
+        // RESUME: restart the game loop
+        gameLoop = setInterval(tick, GAME_SPEED);
+        paused   = false;
+        document.getElementById('pauseBtn').textContent = 'PAUSE';
+        document.getElementById('message').textContent  = '';
+      } else {
+        // PAUSE: stop the game loop
+        clearInterval(gameLoop);
+        paused = true;
+        document.getElementById('pauseBtn').textContent = 'RESUME';
+        document.getElementById('message').textContent  = '⏸ Paused';
+      }
+    }
+
+    // =============================================
+    // FUNCTION: updateScore
+    // Updates the score numbers on screen
+    // =============================================
+    function updateScore() {
+      document.getElementById('score').textContent = score;
+      document.getElementById('best').textContent  = best;
+    }
+
+    // =============================================
+    // FUNCTION: draw
+    // Draws everything on the canvas
+    // Called once per tick (game frame)
+    // =============================================
+    function draw() {
+      // --- Step 1: Clear the canvas with the background color ---
+      ctx.fillStyle = COLOR_BG;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // --- Step 2: Draw the grid lines ---
+      ctx.strokeStyle = COLOR_GRID;
+      for (let col = 0; col < COLS; col++) {
+        for (let row = 0; row < ROWS; row++) {
+          ctx.strokeRect(
+            col * GRID_SIZE,   // x position in pixels
+            row * GRID_SIZE,   // y position in pixels
+            GRID_SIZE,
+            GRID_SIZE
+          );
+        }
+      }
+
+      // --- Step 3: Draw the snake ---
+      snake.forEach(function(segment, index) {
+        // Head is darker green, body is lighter green
+        ctx.fillStyle = (index === 0) ? COLOR_SNAKE_HEAD : COLOR_SNAKE_BODY;
+
+        // Draw a rounded rectangle for each segment
+        ctx.beginPath();
+        ctx.roundRect(
+          segment.x * GRID_SIZE + 1,   // +1 for a small gap between cells
+          segment.y * GRID_SIZE + 1,
+          GRID_SIZE - 2,               // -2 so the gap shows on both sides
+          GRID_SIZE - 2,
+          4                            // corner radius = 4px
+        );
+        ctx.fill();
+      });
+
+      // --- Step 4: Draw the food as a circle ---
+      ctx.fillStyle = COLOR_FOOD;
+      const centerX = food.x * GRID_SIZE + GRID_SIZE / 2;  // Center of the cell
+      const centerY = food.y * GRID_SIZE + GRID_SIZE / 2;
+      const radius  = GRID_SIZE / 2 - 2;                   // Slightly smaller than cell
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);   // Full circle
+      ctx.fill();
+    }
+
+    // =============================================
+    // FUNCTION: handleDirection
+    // Changes the snake's direction (with safety check)
+    // =============================================
+    function handleDirection(dir) {
+      // Prevent the snake from reversing into itself
+      if (dir === 'UP'    && direction.y !== 1)  nextDir = { x:  0, y: -1 };
+      if (dir === 'DOWN'  && direction.y !== -1) nextDir = { x:  0, y:  1 };
+      if (dir === 'LEFT'  && direction.x !== 1)  nextDir = { x: -1, y:  0 };
+      if (dir === 'RIGHT' && direction.x !== -1) nextDir = { x:  1, y:  0 };
+    }
+
+    // =============================================
+    // EVENT LISTENERS
+    // Connect buttons and keys to game functions
+    // =============================================
+
+    // Start / Restart button
+    document.getElementById('startBtn').addEventListener('click', startGame);
+
+    // Pause / Resume button
+    document.getElementById('pauseBtn').addEventListener('click', togglePause);
+
+    // D-pad buttons (on screen)
+    document.querySelectorAll('.d-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        handleDirection(btn.dataset.dir);  // dataset.dir reads the data-dir attribute
+      });
+    });
+
+    // Keyboard arrow keys
+    document.addEventListener('keydown', function(event) {
+      // Prevent the page from scrolling when arrow keys are pressed
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault();
+      }
+
+      if (event.key === 'ArrowUp')    handleDirection('UP');
+      if (event.key === 'ArrowDown')  handleDirection('DOWN');
+      if (event.key === 'ArrowLeft')  handleDirection('LEFT');
+      if (event.key === 'ArrowRight') handleDirection('RIGHT');
+    });
+
+    // =============================================
+    // START: Draw the initial screen when page loads
+    // =============================================
+    initGame();
+
+  </script>
+</body>
+</html>
